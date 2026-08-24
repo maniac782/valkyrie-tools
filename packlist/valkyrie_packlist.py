@@ -2,10 +2,11 @@
 """
 valkyrie_packlist.py
 Generic visual packing list for any Valkyrie MoM scenario.
-
 - Lists Editor scenarios + every downloaded .valkyrie
 - Lets you pick by number
 - Builds tiles + real-monster packing list
+- Size/index/expansion from MansionsOfMadnessTilesIndex_v5.2.pdf
+- Expansion icon comes from the catalog (not whichever DDS is found first)
 - Opens the HTML automatically when finished
 - Cleans up temp extraction folder
 """
@@ -22,7 +23,7 @@ from pathlib import Path
 try:
     from PIL import Image
 except ImportError:
-    print("Pillow not found – install with:  pip install pillow")
+    print("Pillow not found – install with: pip install pillow")
     sys.exit(1)
 
 # ---------------------------------------------------------------------------
@@ -36,26 +37,28 @@ IMPORT_IMG = MOM_ROOT / "import" / "img"
 ICONS_DIR = Path(__file__).parent / "icons"
 
 EXP_ICON_FILE = {
-    "Core":                   "icon_core.png",
-    "Recurring Nightmares":   "icon_rn.png",
-    "Suppressed Memories":    "icon_sm.png",
-    "Beyond the Threshold":   "icon_btt.png",
-    "Streets of Arkham":      "icon_soa.png",
-    "Sanctum of Twilight":    "icon_sot.png",
-    "Horrific Journeys":      "icon_hj.png",
-    "Path of the Serpent":    "icon_pots.png",
+    "Core": "icon_core.png",
+    "Recurring Nightmares": "icon_rn.png",
+    "Suppressed Memories": "icon_sm.png",
+    "Beyond the Threshold": "icon_btt.png",
+    "Streets of Arkham": "icon_soa.png",
+    "Sanctum of Twilight": "icon_sot.png",
+    "Horrific Journeys": "icon_hj.png",
+    "Path of the Serpent": "icon_pots.png",
 }
 
-MAD_TO_EXP = {
-    "MAD20": "Core",
-    "MAD01": "Recurring Nightmares",
-    "MAD06": "Suppressed Memories",
-    "MAD23": "Beyond the Threshold",
-    "MAD25": "Streets of Arkham",
-    "MAD26": "Sanctum of Twilight",
-    "MAD27": "Horrific Journeys",
-    "MAD28": "Path of the Serpent",
+EXP_TO_MAD = {
+    "Core": "MAD20",
+    "Recurring Nightmares": "MAD01",
+    "Suppressed Memories": "MAD06",
+    "Beyond the Threshold": "MAD23",
+    "Streets of Arkham": "MAD25",
+    "Sanctum of Twilight": "MAD26",
+    "Horrific Journeys": "MAD27",
+    "Path of the Serpent": "MAD28",
 }
+
+MAD_TO_EXP = {v: k for k, v in EXP_TO_MAD.items()}
 
 NAME_OVERRIDES = {
     "TileSideHouseBoat": "Houseboat",
@@ -71,6 +74,227 @@ NAME_OVERRIDES = {
     "TileSideAtticLoft": "Attic Loft",
 }
 
+# TileSide -> (size, index, expansion)
+# Index from MansionsOfMadnessTilesIndex_v5.2.pdf
+# Expansion = physical product that tile belongs to
+TILE_INFO: dict[str, tuple[str, str, str]] = {
+    # ===== Core (MAD20) =====
+    "TileSideAlley1": ("S", "1S", "Core"),
+    "TileSideBedroom1": ("S", "1S", "Core"),
+    "TileSideAlley2": ("S", "2S", "Core"),
+    "TileSideBedroom2": ("S", "2S", "Core"),
+    "TileSideBellTower": ("S", "3S", "Core"),
+    "TileSideStreetCorner1": ("S", "3S", "Core"),
+    "TileSideBilliardsRoom": ("S", "4S", "Core"),
+    "TileSideAlleyEnd": ("S", "4S", "Core"),
+    "TileSideEntryHall": ("S", "11S", "Core"),
+    "TileSideStreetCorner2": ("S", "11S", "Core"),
+    "TileSideHall1": ("S", "14S", "Core"),
+    "TileSideDock2": ("S", "14S", "Core"),
+    "TileSideHall2": ("S", "15S", "Core"),
+    "TileSideDock1": ("S", "15S", "Core"),
+    "TileSideHallCorner1": ("S", "16S", "Core"),
+    "TileSideAlleyCorner1": ("S", "16S", "Core"),
+    "TileSideHallCorner2": ("S", "17S", "Core"),
+    "TileSideAlleyCorner2": ("S", "17S", "Core"),
+    "TileSideBathroom": ("S", "18S", "Core"),
+    "TileSideStreet1": ("S", "18S", "Core"),
+    "TileSideHallEnd": ("S", "19S", "Core"),
+    "TileSideStreetCorner3": ("S", "19S", "Core"),
+    "TileSideHallStairs": ("S", "20S", "Core"),
+    "TileSideStreet2": ("S", "20S", "Core"),
+    "TileSideLibrary": ("S", "21S", "Core"),
+    "TileSideYard1": ("S", "21S", "Core"),
+    "TileSideOffice": ("S", "23S", "Core"),
+    "TileSideHouseBoat": ("S", "23S", "Core"),
+    "TileSideStudy": ("S", "31S", "Core"),
+    "TileSideRentalDock": ("S", "31S", "Core"),
+    "TileSideRentalShack": ("S", "31S", "Core"),
+    "TileSideYard2": ("S", "32S", "Core"),
+    "TileSideBeach": ("S", "32S", "Core"),
+    "TileSideMoldyShack": ("S", "32S", "Core"),
+    "TileSideAttic": ("M", "1M", "Core"),
+    "TileSideParkPond": ("M", "1M", "Core"),
+    "TileSideAtticStairs": ("M", "1M", "Core"),
+    "TileSideBallroom": ("M", "5M", "Core"),
+    "TileSideWarehouse": ("M", "5M", "Core"),
+    "TileSideBasement": ("M", "7M", "Core"),
+    "TileSideFleaMarket": ("M", "7M", "Core"),
+    "TileSideConservatory": ("M", "8M", "Core"),
+    "TileSideStorefront": ("M", "8M", "Core"),
+    "TileSideDiningRoom": ("M", "9M", "Core"),
+    "TileSideTownSquare": ("M", "9M", "Core"),
+    "TileSideKitchen": ("M", "9M", "Core"),
+    "TileSideInteriorHall": ("M", "15M", "Core"),
+    "TileSideRootCellar": ("M", "15M", "Core"),
+    "TileSideLobby": ("M", "16M", "Core"),
+    "TileSideToolShed": ("M", "16M", "Core"),
+    "TileSideLounge": ("M", "17M", "Core"),
+    "TileSidePier": ("M", "17M", "Core"),
+
+    # ===== Recurring Nightmares (MAD01) =====
+    "TileSideCeremonyRoom": ("S", "8S", "Recurring Nightmares"),
+    "TileSideNursery": ("S", "8S", "Recurring Nightmares"),
+    "TileSideBathroom2": ("S", "8S", "Recurring Nightmares"),
+    "TileSideCave1": ("S", "5S", "Recurring Nightmares"),
+    "TileSideHallway4": ("S", "5S", "Recurring Nightmares"),
+    "TileSideCave2": ("S", "6S", "Recurring Nightmares"),
+    "TileSideHallway3": ("S", "6S", "Recurring Nightmares"),
+    "TileSideCave3": ("S", "7S", "Recurring Nightmares"),
+    "TileSideChasm": ("S", "9S", "Recurring Nightmares"),
+    "TileSideHallway2": ("S", "9S", "Recurring Nightmares"),
+    "TileSideCrypt": ("S", "10S", "Recurring Nightmares"),
+    "TileSideHallway1": ("S", "10S", "Recurring Nightmares"),
+    "TileSideFurnaceRoom": ("S", "12S", "Recurring Nightmares"),
+    "TileSideMasterBedroom": ("S", "12S", "Recurring Nightmares"),
+    "TileSideHallway5": ("S", "13S", "Recurring Nightmares"),
+    "TileSideGuestBedroom": ("S", "29S", "Recurring Nightmares"),
+    "TileSideStorageCloset": ("S", "29S", "Recurring Nightmares"),
+    "TileSideSecretPassage": ("S", "29S", "Recurring Nightmares"),
+    "TileSideAtticLoft": ("M", "2M", "Recurring Nightmares"),
+    "TileSideChapel": ("M", "2M", "Recurring Nightmares"),
+    "TileSideBasementLanding": ("M", "6M", "Recurring Nightmares"),
+    "TileSideBasementStairs": ("M", "6M", "Recurring Nightmares"),
+    "TileSideAtticStorage": ("M", "6M", "Recurring Nightmares"),
+    "TileSideBasementStorage": ("M", "6M", "Recurring Nightmares"),
+    "TileSideTowerRoom": ("M", "6M", "Recurring Nightmares"),
+    "TileSideTowerStairs": ("M", "6M", "Recurring Nightmares"),
+    "TileSideGarden": ("M", "10M", "Recurring Nightmares"),
+    "TileSideEntryway": ("M", "10M", "Recurring Nightmares"),
+    "TileSideFrontPorch": ("M", "11M", "Recurring Nightmares"),
+    "TileSideFrontPath": ("M", "11M", "Recurring Nightmares"),
+    "TileSideFreezer": ("M", "11M", "Recurring Nightmares"),
+    "TileSideOperatingRoom": ("M", "11M", "Recurring Nightmares"),
+    "TileSideLaboratory": ("M", "11M", "Recurring Nightmares"),
+    "TileSideGraveyard": ("M", "13M", "Recurring Nightmares"),
+    "TileSideKitchenStorage": ("M", "13M", "Recurring Nightmares"),
+    "TileSideCornerHallway1": ("M", "21M", "Recurring Nightmares"),
+    "TileSideCornerHallway2": ("M", "21M", "Recurring Nightmares"),
+    "TileSidePatio": ("M", "21M", "Recurring Nightmares"),
+    "TileSideFoyer": ("L", "2L", "Recurring Nightmares"),
+    "TileSideMudRoom": ("L", "2L", "Recurring Nightmares"),
+    "TileSideFrontYard": ("L", "2L", "Recurring Nightmares"),
+
+    # ===== Suppressed Memories (MAD06) =====
+    "TileSideGraveyard2": ("S", "13S", "Suppressed Memories"),
+    "TileSideHoldingCell": ("S", "22S", "Suppressed Memories"),
+    "TileSideObservationRoom": ("S", "22S", "Suppressed Memories"),
+    "TileSideMedicalStorage": ("S", "22S", "Suppressed Memories"),
+    "TileSideCaveBend": ("S", "24S", "Suppressed Memories"),
+    "TileSideOldOak": ("S", "24S", "Suppressed Memories"),
+    "TileSideCaveEntrance": ("S", "25S", "Suppressed Memories"),
+    "TileSidePigpen": ("S", "25S", "Suppressed Memories"),
+    "TileSideOldWell": ("S", "26S", "Suppressed Memories"),
+    "TileSideRiverBend1": ("S", "26S", "Suppressed Memories"),
+    "TileSideRiverBend2": ("S", "26S", "Suppressed Memories"),
+    "TileSideDarkPath": ("S", "27S", "Suppressed Memories"),
+    "TileSideOuthouse": ("S", "27S", "Suppressed Memories"),
+    "TileSideRiverRapids1": ("S", "27S", "Suppressed Memories"),
+    "TileSideRiverRapids2": ("S", "27S", "Suppressed Memories"),
+    "TileSideCampsite": ("S", "28S", "Suppressed Memories"),
+    "TileSideScarecrow": ("S", "28S", "Suppressed Memories"),
+    "TileSideRottedPath": ("S", "30S", "Suppressed Memories"),
+    "TileSideRottedPorch": ("S", "30S", "Suppressed Memories"),
+    "TileSideSpruceGrove": ("S", "30S", "Suppressed Memories"),
+    "TileSideBackPath": ("M", "3M", "Suppressed Memories"),
+    "TileSideControlRoom": ("M", "3M", "Suppressed Memories"),
+    "TileSideGreenhouse": ("M", "3M", "Suppressed Memories"),
+    "TileSideHiddenLaboratory": ("M", "3M", "Suppressed Memories"),
+    "TileSideGeneratorRoom": ("M", "12M", "Suppressed Memories"),
+    "TileSideOperatingTheater": ("M", "12M", "Suppressed Memories"),
+    "TileSideAbandonedShack": ("M", "14M", "Suppressed Memories"),
+    "TileSideHilltop": ("M", "14M", "Suppressed Memories"),
+    "TileSideOldOrchard": ("M", "14M", "Suppressed Memories"),
+    "TileSideMarshland": ("M", "18M", "Suppressed Memories"),
+    "TileSideRitualSite": ("M", "18M", "Suppressed Memories"),
+    "TileSidePond": ("M", "19M", "Suppressed Memories"),
+    "TileSideTortureChamber": ("M", "19M", "Suppressed Memories"),
+    "TileSideDungeonCave": ("M", "19M", "Suppressed Memories"),
+    "TileSideDungeonCell": ("M", "19M", "Suppressed Memories"),
+    "TileSideMorgue": ("M", "20M", "Suppressed Memories"),
+    "TileSideQuarantineRoom": ("M", "20M", "Suppressed Memories"),
+    "TileSideRooftop": ("M", "20M", "Suppressed Memories"),
+    "TileSideForestEdge": ("L", "1L", "Suppressed Memories"),
+    "TileSideMillYard": ("L", "1L", "Suppressed Memories"),
+    "TileSideOldForest": ("L", "1L", "Suppressed Memories"),
+    "TileSideSawmill": ("L", "1L", "Suppressed Memories"),
+    "TileSideWaterwheel": ("L", "1L", "Suppressed Memories"),
+    "TileSideBarn": ("L", "3L", "Suppressed Memories"),
+    "TileSideBarnyard": ("L", "3L", "Suppressed Memories"),
+    "TileSideRiverCrossing1": ("L", "3L", "Suppressed Memories"),
+    "TileSideRiverCrossing2": ("L", "3L", "Suppressed Memories"),
+    "TileSideCoveredBridge": ("L", "3L", "Suppressed Memories"),
+
+    # ===== Beyond the Threshold (MAD23) =====
+    "TileSideHallCorner": ("S", "35S", "Beyond the Threshold"),
+    "TileSideHallCorner3": ("S", "18S", "Beyond the Threshold"),
+    "TileSideBalcony": ("S", "33S", "Beyond the Threshold"),
+    "TileSidePorch": ("S", "34S", "Beyond the Threshold"),
+    "TileSideCoatRoom": ("M", "4M", "Beyond the Threshold"),
+    "TileSideBackyard": ("M", "4M", "Beyond the Threshold"),
+    "TileSideGallery": ("M", "4M", "Beyond the Threshold"),
+    "TileSideStorageShed": ("M", "4M", "Beyond the Threshold"),
+    "TileSideFrontStreet": ("M", "8M", "Beyond the Threshold"),
+    "TileSideGardenPath": ("M", "8M", "Beyond the Threshold"),
+    "TileSideSmallBedroom1": ("M", "15M", "Beyond the Threshold"),
+    "TileSideSmallBedroom2": ("M", "15M", "Beyond the Threshold"),
+    "TileSideSnackShack": ("M", "17M", "Beyond the Threshold"),
+    "TileSideExhibitEntrance": ("L", "4L", "Beyond the Threshold"),
+    "TileSideDiner": ("L", "4L", "Beyond the Threshold"),
+
+    # ===== Streets of Arkham (MAD25) =====
+    "TileSideAlley": ("S", "43S", "Streets of Arkham"),
+    "TileSideStreetCorner": ("S", "48S", "Streets of Arkham"),
+    "TileSideBandstand": ("M", "24M", "Streets of Arkham"),
+    "TileSideGeneralShop": ("M", "25M", "Streets of Arkham"),
+    "TileSideShopStorage": ("M", "25M", "Streets of Arkham"),
+    "TileSideStudio": ("M", "25M", "Streets of Arkham"),
+    "TileSideStudioStorage": ("M", "25M", "Streets of Arkham"),
+    "TileSideClassroom1": ("M", "26M", "Streets of Arkham"),
+    "TileSideCafe": ("M", "27M", "Streets of Arkham"),
+
+    # ===== Sanctum of Twilight (MAD26) =====
+    "TileSideExhibit3": ("M", "22M", "Sanctum of Twilight"),
+    "TileSideMainExhibit": ("M", "23M", "Sanctum of Twilight"),
+    "TileSidePool": ("M", "28M", "Sanctum of Twilight"),
+    "TileSideProw": ("M", "29M", "Sanctum of Twilight"),
+    "TileSideViewingRoom2": ("M", "29M", "Sanctum of Twilight"),
+    "TileSideThroneChamber": ("M", "31M", "Sanctum of Twilight"),
+    "TileSideRiverEdge": ("M", "31M", "Sanctum of Twilight"),
+    "TileSideStatueChamber": ("M", "32M", "Sanctum of Twilight"),
+    "TileSideRuinedHut": ("M", "32M", "Sanctum of Twilight"),
+    "TileSideCrackedChamber": ("M", "33M", "Sanctum of Twilight"),
+    "TileSideTempleStairs": ("M", "33M", "Sanctum of Twilight"),
+    "TileSideCrumblingPlaza": ("M", "34M", "Sanctum of Twilight"),
+    "TileSidePoolChamber": ("M", "34M", "Sanctum of Twilight"),
+    "TileSideMosaicChamber": ("M", "35M", "Sanctum of Twilight"),
+    "TileSideRopeBridge": ("M", "35M", "Sanctum of Twilight"),
+
+    # ===== Horrific Journeys (MAD27) =====
+    "TileSideCabin": ("S", "23S", "Horrific Journeys"),
+    "TileSideEngineRoom": ("M", "30M", "Horrific Journeys"),
+    "TileSideEngineStairs": ("M", "30M", "Horrific Journeys"),
+    "TileSideStation": ("M", "30M", "Horrific Journeys"),
+    "TileSideStationBooth": ("M", "30M", "Horrific Journeys"),
+    "TileSideStationPlatform": ("M", "30M", "Horrific Journeys"),
+
+    # ===== Path of the Serpent (MAD28) =====
+    "TileSideLab": ("M", "24M", "Path of the Serpent"),
+    "TileSideJungleRuins3": ("M", "32M", "Path of the Serpent"),
+    "TileSideAbandonedHut": ("M", "36M", "Path of the Serpent"),
+    "TileSideClearing2": ("M", "36M", "Path of the Serpent"),
+    "TileSidePit": ("M", "36M", "Path of the Serpent"),
+    "TileSidePitLedge": ("M", "36M", "Path of the Serpent"),
+}
+
+
+def lookup_tile(side: str) -> tuple[str, str, str]:
+    """Return (size, index, expansion). Exact TileSide match only."""
+    if side in TILE_INFO:
+        return TILE_INFO[side]
+    return ("?", "", "Unknown")
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -83,24 +307,30 @@ def convert_any_image(src: Path, dst: Path, rotate: int = 0) -> bool:
             im.save(dst, "PNG")
         return True
     except Exception as e:
-        print(f"  ✗ {src.name}: {e}")
+        print(f" ✗ {src.name}: {e}")
         return False
 
-def side_to_candidates(side: str) -> list[str]:
+
+def side_to_candidates(side: str, preferred_mad: str | None = None) -> list[str]:
     base = side.replace("TileSide", "")
-    cands = [
-        f"Tile_{base}_MAD20.dds", f"Tile_{base}_MAD01.dds", f"Tile_{base}_MAD06.dds",
-        f"Tile_{base}_MAD23.dds", f"Tile_{base}_MAD25.dds", f"Tile_{base}_MAD27.dds",
-        f"Tile_{base}_MAD28.dds", f"TILE_{base.upper()}_MAD20.dds",
-        f"TILE_{base.upper()}_MAD27.dds", f"Tile_{base}.dds",
-    ]
     underscored = re.sub(r"([a-z])([A-Z])", r"\1_\2", base)
-    if underscored != base:
-        cands = [f"Tile_{underscored}_MAD20.dds", f"Tile_{underscored}_MAD01.dds"] + cands
+    mads = ["MAD20", "MAD01", "MAD06", "MAD23", "MAD25", "MAD26", "MAD27", "MAD28"]
+    if preferred_mad and preferred_mad in mads:
+        mads = [preferred_mad] + [m for m in mads if m != preferred_mad]
+
+    cands: list[str] = []
+    for mad in mads:
+        cands.append(f"Tile_{base}_{mad}.dds")
+        if underscored != base:
+            cands.append(f"Tile_{underscored}_{mad}.dds")
+        cands.append(f"TILE_{base.upper()}_{mad}.dds")
+    cands.append(f"Tile_{base}.dds")
     return cands
 
-def find_tile_image(side: str) -> Path | None:
-    for name in side_to_candidates(side):
+
+def find_tile_image(side: str, expansion: str = "Unknown") -> Path | None:
+    preferred_mad = EXP_TO_MAD.get(expansion)
+    for name in side_to_candidates(side, preferred_mad):
         p = IMPORT_IMG / name
         if p.exists():
             return p
@@ -109,6 +339,7 @@ def find_tile_image(side: str) -> Path | None:
         if pattern in re.sub(r"[^a-z0-9]", "", p.stem.lower()):
             return p
     return None
+
 
 def find_monster_dds(name: str) -> Path | None:
     clean = re.sub(r"^(Monster|CustomMonster)", "", name)
@@ -131,6 +362,7 @@ def find_monster_dds(name: str) -> Path | None:
             return p
     return None
 
+
 def parse_tiles_ini(tiles_ini: Path) -> dict[str, str]:
     text = tiles_ini.read_text(encoding="utf-8", errors="ignore")
     mapping, current = {}, None
@@ -142,6 +374,7 @@ def parse_tiles_ini(tiles_ini: Path) -> dict[str, str]:
         if current and line.strip().lower().startswith("side="):
             mapping[current] = line.split("=", 1)[1].strip()
     return mapping
+
 
 def parse_custom_monsters(scenario_dir: Path) -> dict[str, dict]:
     result = {}
@@ -167,6 +400,7 @@ def parse_custom_monsters(scenario_dir: Path) -> dict[str, dict]:
                 result[current]["image"] = val
     return result
 
+
 def collect_added_tiles(scenario_dir: Path) -> tuple[list[str], list[str]]:
     normal, six = [], []
     seen = set()
@@ -183,6 +417,7 @@ def collect_added_tiles(scenario_dir: Path) -> tuple[list[str], list[str]]:
                 else:
                     normal.append(name)
     return normal, six
+
 
 def collect_real_monsters(scenario_dir: Path) -> list[tuple[str, list[str]]]:
     custom_info = parse_custom_monsters(scenario_dir)
@@ -207,6 +442,7 @@ def collect_real_monsters(scenario_dir: Path) -> list[tuple[str, list[str]]]:
                 used_by[real].append(custom_name)
     return [(real, used_by[real]) for real in order]
 
+
 def nice_monster_name(monster: str) -> str:
     name = re.sub(r"^CustomMonster", "", monster)
     name = re.sub(r"^Monster", "", name)
@@ -214,56 +450,35 @@ def nice_monster_name(monster: str) -> str:
     name = re.sub(r"([a-z])([A-Z])", r"\1 \2", name)
     return name.strip() or monster
 
+
 def nice_name(side: str) -> str:
     if side in NAME_OVERRIDES:
         return NAME_OVERRIDES[side]
     base = side.replace("TileSide", "")
     return re.sub(r"([a-z])([A-Z])", r"\1 \2", base)
 
-def guess_expansion(img_path: Path | None) -> str:
-    if not img_path:
-        return "Unknown"
-    m = re.search(r"(MAD\d+)", img_path.name, re.IGNORECASE)
-    if m:
-        return MAD_TO_EXP.get(m.group(1).upper(), "Unknown")
-    return "Unknown"
-
-def guess_size(img_path: Path | None) -> str:
-    if not img_path:
-        return "?"
-    size = img_path.stat().st_size
-    if size > 1_800_000:
-        return "L"
-    if size > 1_000_000:
-        return "M"
-    return "S"
 
 def find_scenario_name(folder: Path) -> str:
-    # Localization files (both "key = value" and "key,value" formats)
     for loc_name in ("Localization.English.txt", "Localization.txt"):
         loc = folder / loc_name
         if not loc.exists():
             continue
         text = loc.read_text(encoding="utf-8", errors="ignore")
         for key in ("quest.name", "UISplashTitle", "name"):
-            # INI style: key = value
             m = re.search(rf"^{re.escape(key)}\s*=\s*(.+)$", text, re.MULTILINE | re.IGNORECASE)
             if m:
                 return m.group(1).strip().strip('"')
-            # CSV style: key,value
             m = re.search(rf"^{re.escape(key)}\s*,\s*(.+)$", text, re.MULTILINE | re.IGNORECASE)
             if m:
                 return m.group(1).strip().strip('"')
-
-    # quest.ini
     quest = folder / "quest.ini"
     if quest.exists():
         text = quest.read_text(encoding="utf-8", errors="ignore")
         m = re.search(r"^name\s*=\s*(.+)$", text, re.MULTILINE | re.IGNORECASE)
         if m:
             return m.group(1).strip().strip('"')
-
     return folder.name
+
 
 def discover_scenarios() -> list[Path]:
     found = []
@@ -278,6 +493,7 @@ def discover_scenarios() -> list[Path]:
         if p.resolve() not in [x.resolve() for x in found]:
             found.append(p)
     return found
+
 
 # ---------------------------------------------------------------------------
 # Build packing list
@@ -295,9 +511,9 @@ def build_packlist(scenario_dir: Path):
     normal_comps, six_comps = collect_added_tiles(scenario_dir)
     real_monsters = collect_real_monsters(scenario_dir)
 
-    print(f"  Normal tiles  : {len(normal_comps)}")
-    print(f"  6-player tiles: {len(six_comps)}")
-    print(f"  Real monsters : {len(real_monsters)}")
+    print(f" Normal tiles : {len(normal_comps)}")
+    print(f" 6-player tiles: {len(six_comps)}")
+    print(f" Real monsters : {len(real_monsters)}")
 
     sides = []
     seen = set()
@@ -325,25 +541,38 @@ def build_packlist(scenario_dir: Path):
         if src_icon.exists():
             shutil.copy2(src_icon, icons_out / fname)
             icon_map[exp] = f"icons/{fname}"
-            print(f"  ✓ icon {fname}")
+            print(f" ✓ icon {fname}")
         else:
-            print(f"  ! missing {src_icon.name}")
+            print(f" ! missing {src_icon.name}")
 
     tile_cards = []
     for i, (side, is_six) in enumerate(sides, 1):
-        img_src = find_tile_image(side)
+        size, index, exp = lookup_tile(side)
         printed = nice_name(side)
-        exp = guess_expansion(img_src)
-        size = guess_size(img_src)
+        if index and len(index) >= 2 and index[-1] in "SML":
+            size_label = f"{index[:-1]} {index[-1]}"  # e.g. "35 S"
+        else:
+            size_label = index if index else size
+
+        # Image: prefer the MAD file for this expansion
+        img_src = find_tile_image(side, exp)
         img_rel = None
         if img_src:
             dst = tiles_dir / f"{side}.png"
             if convert_any_image(img_src, dst):
                 img_rel = f"tiles/{side}.png"
-                print(f"  ✓ tile {side} → {printed}")
+                print(f" ✓ tile {side} → {printed} [{size_label}] [{exp}]")
+        else:
+            print(f" ? no image for {side} ({printed}) [{size_label}] [{exp}]")
+
         tile_cards.append({
-            "num": i, "printed": printed, "exp": exp, "size": size,
-            "img": img_rel, "icon": icon_map.get(exp), "six": is_six,
+            "num": i,
+            "printed": printed,
+            "exp": exp,
+            "size": size_label,
+            "img": img_rel,
+            "icon": icon_map.get(exp),
+            "six": is_six,
         })
 
     monster_cards = []
@@ -355,11 +584,11 @@ def build_packlist(scenario_dir: Path):
             dst = monsters_dir / f"{real}.png"
             if convert_any_image(img_src, dst, rotate=180):
                 img_rel = f"monsters/{real}.png"
-                print(f"  ✓ monster {real} → {printed}")
+                print(f" ✓ monster {real} → {printed}")
             else:
-                print(f"  ✗ convert failed {real}")
+                print(f" ✗ convert failed {real}")
         else:
-            print(f"  ? no image for {real}")
+            print(f" ? no image for {real}")
         note = ""
         if customs:
             short = [nice_monster_name(c) for c in customs]
@@ -405,7 +634,8 @@ def build_packlist(scenario_dir: Path):
 </style></head><body>
 <h1>{html.escape(scenario_name)} – Packing List</h1>
 <p>Tiles and real monster tokens needed for this scenario.<br>
-Custom monsters are mapped to the physical base token you must pull from the box.</p>
+Custom monsters are mapped to the physical base token you must pull from the box.<br>
+Size labels match <em>Mansions of Madness Tiles Index v5.2</em>. Expansion icons match the physical product.</p>
 <div class="legend">{''.join(legend)}</div>
 """]
 
@@ -467,31 +697,27 @@ Custom monsters are mapped to the physical base token you must pull from the box
     out = out_dir / "packing_list.html"
     out.write_text("".join(html_parts), encoding="utf-8")
     print(f"\nDone → {out}")
-
-    # Automatically open in the default browser
     webbrowser.open(out.resolve().as_uri())
     print("Opened in browser.")
 
-# ---------------------------------------------------------------------------
-# Main – interactive picker
-# ---------------------------------------------------------------------------
+
 def main():
     scenarios = discover_scenarios()
     if not scenarios:
         print("No scenarios found.")
         print(f"Looked in: {EDITOR_DIR}")
-        print(f"       and: {DOWNLOAD_DIR}")
+        print(f" and: {DOWNLOAD_DIR}")
         sys.exit(1)
 
     print("Available scenarios:\n")
     for i, p in enumerate(scenarios, 1):
         if p.is_dir():
             name = find_scenario_name(p)
-            print(f"  {i:2d}. [Editor] {name}  ({p.name})")
+            print(f" {i:2d}. [Editor] {name} ({p.name})")
         else:
-            print(f"  {i:2d}. [Download] {p.stem}")
-
+            print(f" {i:2d}. [Download] {p.stem}")
     print()
+
     while True:
         try:
             choice = input("Enter number (or q to quit): ").strip()
@@ -507,7 +733,6 @@ def main():
 
     selected = scenarios[idx - 1]
     work = None
-
     if selected.suffix.lower() == ".valkyrie":
         work = Path("temp_scenario")
         if work.exists():
@@ -523,10 +748,10 @@ def main():
     try:
         build_packlist(scenario_dir)
     finally:
-        # Always clean up the temp extraction folder
         if work is not None and work.exists():
             shutil.rmtree(work)
             print("Cleaned up temp_scenario/")
+
 
 if __name__ == "__main__":
     main()

@@ -11,6 +11,7 @@ Providers:
 
 Interactive picker of Download scenarios.
 Packages only to Download\\<name>_TTS.valkyrie
+Keeps original quest.name by default so Valkyrie stats attach to the original scenario.
 Cleans up Editor leftovers automatically.
 """
 
@@ -427,7 +428,24 @@ def pack_scenario(folder: Path, out_valkyrie: Path) -> None:
                 zf.write(path, path.relative_to(folder).as_posix())
 
 
-def rename_scenario_title(work: Path, suffix: str = " TTS") -> str:
+def rename_scenario_title(work: Path, suffix: str = "") -> str:
+    """
+    Optionally append suffix to quest.name / splash title.
+    Empty suffix = leave names alone (stats stay on original scenario).
+    """
+    current = ""
+    for loc in work.glob("Localization*.txt"):
+        if "English" in loc.name or not current:
+            for line in loc.read_text(encoding="utf-8", errors="replace").splitlines():
+                if line.startswith("quest.name,"):
+                    current = line.partition(",")[2].strip()
+                    break
+        if current:
+            break
+
+    if not suffix:
+        return current or "Scenario"
+
     new_name = ""
     for loc in work.glob("Localization*.txt"):
         text = loc.read_text(encoding="utf-8", errors="replace")
@@ -456,7 +474,7 @@ def rename_scenario_title(work: Path, suffix: str = " TTS") -> str:
             "\n".join(out_lines) + ("\n" if text.endswith("\n") else ""),
             encoding="utf-8",
         )
-    return new_name or f"Scenario{suffix}"
+    return new_name or current or f"Scenario{suffix}"
 
 
 def discover_download_scenarios() -> List[Path]:
@@ -501,7 +519,7 @@ def process_scenario(
     pause: float = 0.25,
     import_audio_dir: Optional[Path] = None,
     output: Optional[Path] = None,
-    title_suffix: str = " TTS",
+    title_suffix: str = "",
 ) -> None:
     import_audio_dir = import_audio_dir or default_import_audio_dir()
     tmp_root = Path(tempfile.mkdtemp(prefix="valkyrie_tts_"))
@@ -620,7 +638,10 @@ def process_scenario(
             tokens_path.write_text(tokens_content, encoding="utf-8")
 
         display_name = rename_scenario_title(work, suffix=title_suffix)
-        log(f"Scenario display name set to: {display_name}")
+        if title_suffix:
+            log(f"Scenario display name set to: {display_name}")
+        else:
+            log(f"Keeping original scenario name for stats: {display_name}")
 
         stem = scenario.stem if scenario.is_file() else scenario.name
         stem_clean = re.sub(r"_?TTS$", "", stem, flags=re.I)
@@ -708,7 +729,11 @@ def main() -> None:
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--pause", type=float, default=0.25)
     ap.add_argument("--import-audio", type=str, default=None)
-    ap.add_argument("--title-suffix", default=" TTS")
+    ap.add_argument(
+        "--title-suffix",
+        default="",
+        help='Append to quest.name (default: "" so stats stay on original). Use " TTS" to distinguish in the menu.',
+    )
     args = ap.parse_args()
 
     if args.list_voices:

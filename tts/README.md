@@ -2,9 +2,9 @@
 
 Generate spoken dialogue for **Mansions of Madness 2nd Edition** scenarios used with [Valkyrie](https://github.com/NPBruce/valkyrie).
 
-The tool reads a scenario’s localization file, synthesizes speech for story text, mixes it with existing SFX when needed, and writes `audio=` entries into the scenario’s event/token definitions. It packages the result as a new `.valkyrie` under **Download**.
+The tool reads a scenario’s localization file, synthesizes speech for story text, mixes it with existing SFX when needed, and writes `audio=` entries into the scenario’s event/token definitions.
 
-By default the **display name (`quest.name`) is left unchanged**, so end-of-run win/loss and feedback should attach to the **original scenario** in Valkyrie’s stats. The file on disk is still named `*_TTS.valkyrie` so you can tell the voiced pack from the stock file.
+**By default it replaces the chosen `.valkyrie` in place** (same filename). The display name (`quest.name`) is left unchanged so win/loss and feedback stay on the **original scenario**. You do not end up with two copies in Download.
 
 ---
 
@@ -15,9 +15,9 @@ By default the **display name (`quest.name`) is left unchanged**, so end-of-run 
 - Skips UI chrome, buttons, quest metadata, and very short strings
 - Preserves existing scenario SFX: `SFX → short pause → TTS` when an event already has built-in audio
 - Hash-based cache so unchanged lines are not regenerated
-- Packages to `%APPDATA%\Valkyrie\Download\<name>_TTS.valkyrie`
-- **Keeps original `quest.name`** by default (stats stay on the original scenario)
-- Cleans up any leftover Editor `_TTS` folders after packaging
+- **Overwrites the source `.valkyrie` in place** (no separate `*_TTS` twin)
+- **Keeps original `quest.name`** (stats stay on the original scenario)
+- Removes any leftover `*_TTS.valkyrie` twin and Editor `_TTS` folders
 - Preview a sample line before committing to a full scenario run
 
 ---
@@ -52,16 +52,16 @@ Standard monster attack, horror, and evade text (`MONSTER_*_ATTACK_*`, etc.) als
 
 ---
 
-## Scenario name and statistics
+## Scenario name, files, and statistics
 
-| Setting | In-game / stats name | File on disk |
-|---------|----------------------|--------------|
-| **Default** (`--title-suffix` empty) | Original scenario name | `Download\<name>_TTS.valkyrie` |
-| `--title-suffix " TTS"` | `Original TTS` | same |
+| | Default behavior |
+|--|------------------|
+| File | **Replaces** the chosen `Download\Scenario.valkyrie` in place |
+| `quest.name` | Unchanged → stats report as the original scenario |
+| Old `*_TTS.valkyrie` twin | Deleted if still present |
+| Optional `-o path` | Write somewhere else instead of overwriting |
 
-- **Default:** win/loss and feedback should report under the **original** scenario identity.
-- If both the stock and `_TTS` packs are installed, they can show the **same title** in the list — pick the `_TTS` file when you want voice.
-- Use `--title-suffix " TTS"` only if you want a distinct menu label (stats then go to a separate “TTS” entry).
+**Warning:** in-place replace is destructive for that file. Re-download the scenario from Valkyrie if you need a silent stock copy again.
 
 ---
 
@@ -101,28 +101,20 @@ pip install edge-tts
 
 ```powershell
 $env:ELEVENLABS_API_KEY = "your_key_here"
-```
-
-```powershell
 python valkyrie_tts.py --provider elevenlabs --voice Adam --preview
 ```
 
 ### Optional: Kokoro (local)
 
-Kokoro is picky about Python version. Models must sit next to the script (or adjust paths in the script):
-
 ```powershell
 py -3.12 -m venv .venv-kokoro
-# If execution policy blocks Activate.ps1, call the venv python directly:
 .\.venv-kokoro\Scripts\python.exe -m pip install kokoro-tts soundfile
 ```
 
-Download into the `tts` folder (same directory as `valkyrie_tts.py`):
+Download into the `tts` folder (next to `valkyrie_tts.py`):
 
 - [kokoro-v1.0.onnx](https://github.com/nazdridoy/kokoro-tts/releases/download/v1.0.0/kokoro-v1.0.onnx)
 - [voices-v1.0.bin](https://github.com/nazdridoy/kokoro-tts/releases/download/v1.0.0/voices-v1.0.bin)
-
-British male **Daniel** (`bm_daniel`, `en-gb`) is a good default. Generation is CPU-bound and slower than edge-tts; caching still applies.
 
 ```powershell
 python valkyrie_tts.py --provider kokoro --voice bm_daniel --preview
@@ -142,13 +134,6 @@ python valkyrie_tts.py --list-voices
 | **elevenlabs** | Higher quality; metered by character count | `Adam` |
 | **kokoro** | Free local; slower on CPU | `bm_daniel` |
 
-Preview one line:
-
-```powershell
-python valkyrie_tts.py --preview --voice Thomas
-python valkyrie_tts.py --preview --provider kokoro --voice bm_daniel
-```
-
 ---
 
 ## Run
@@ -156,18 +141,15 @@ python valkyrie_tts.py --preview --provider kokoro --voice bm_daniel
 ### Interactive (recommended)
 
 ```powershell
-python valkyrie_tts.py
-# or with an explicit voice / provider:
-python valkyrie_tts.py --provider edge --voice Thomas
 python valkyrie_tts.py --provider kokoro --voice bm_daniel
 ```
 
-You get a numbered list of `%APPDATA%\Valkyrie\Download\*.valkyrie` files. Pick one; the tool generates audio and writes `Download\<name>_TTS.valkyrie`.
+Pick a numbered scenario from Download. When finished, **that same file** is the voiced version.
 
-### Explicit scenario path
+### Explicit path
 
 ```powershell
-python valkyrie_tts.py -s "$env:APPDATA\Valkyrie\Download\SomeScenario.valkyrie" --voice Thomas
+python valkyrie_tts.py -s "$env:APPDATA\Valkyrie\Download\SomeScenario.valkyrie" --provider kokoro --voice bm_daniel
 ```
 
 ### Options
@@ -175,7 +157,7 @@ python valkyrie_tts.py -s "$env:APPDATA\Valkyrie\Download\SomeScenario.valkyrie"
 | Option | Purpose |
 |--------|---------|
 | `-s` / `--scenario` | Path to `.valkyrie` (optional — interactive picker if omitted) |
-| `-o` / `--output` | Output `.valkyrie` path (default: `Download\<name>_TTS.valkyrie`) |
+| `-o` / `--output` | Write to another path instead of overwriting the source |
 | `--provider` | `edge` (default), `elevenlabs`, or `kokoro` |
 | `--voice` | Voice label (defaults depend on provider) |
 | `--dry-run` | Parse and list work without writing audio |
@@ -184,38 +166,19 @@ python valkyrie_tts.py -s "$env:APPDATA\Valkyrie\Download\SomeScenario.valkyrie"
 | `--list-voices` | Print known voices |
 | `--pause` | Seconds of silence between SFX and TTS when mixing (default `0.25`) |
 | `--import-audio` | Override path to Valkyrie import audio folder |
-| `--title-suffix` | Append to `quest.name` (default **empty** so stats stay on original). Use `" TTS"` for a distinct menu name. |
+| `--title-suffix` | Append to `quest.name` (default empty). Rarely needed now that the file is replaced in place. |
 
 ---
 
 ## Typical workflow
 
-1. Download the scenario in Valkyrie (`Download\*.valkyrie`).
-2. Preview a voice: `python valkyrie_tts.py --preview --voice Thomas`.
-3. Run TTS (interactive or `-s`); output lands as `Download\ScenarioName_TTS.valkyrie`.
-4. In Valkyrie, play the `_TTS` package (refresh the list if needed).
-5. Expect **story / search / clue** lines to be voiced.
-6. Expect **stock Mythos** and **stock combat** lines to stay silent unless the author wrote custom events with `.text`.
-7. At the end of the run, win/loss should report under the **original scenario name** (unless you used `--title-suffix`).
-
----
-
-## Output layout (conceptual)
-
-Inside the packaged scenario:
-
-```text
-tts_audio/
-  EventSomeName.ogg
-  TokenSomeName.ogg
-  ...
-events.ini               # audio=tts_audio/... added or updated
-tokens.ini
-Localization.English.txt # quest.name unchanged by default
-...
-```
-
-Cache lives under the system temp folder (`valkyrie_tts_cache`) so re-runs are faster.
+1. Download the scenario in Valkyrie.
+2. Preview: `python valkyrie_tts.py --preview --provider kokoro --voice bm_daniel`
+3. Run TTS on that scenario (interactive or `-s`).
+4. The original Download file is replaced with the voiced package.
+5. Play it in Valkyrie like the stock scenario (same name).
+6. Story/search/clue lines speak; stock Mythos and stock combat lines do not.
+7. Win/loss reports under the original scenario name.
 
 ---
 
@@ -224,21 +187,18 @@ Cache lives under the system temp folder (`valkyrie_tts_cache`) so re-runs are f
 | Problem | Check |
 |---------|--------|
 | No scenarios listed | Files under `%APPDATA%\Valkyrie\Download\` |
-| `edge-tts` / import errors | `pip install edge-tts`; network allowed for Microsoft voices |
-| ffmpeg errors | Install ffmpeg; confirm `ffmpeg -version` in the same shell |
-| Kokoro missing models | Place `kokoro-v1.0.onnx` and `voices-v1.0.bin` next to the script |
-| Kokoro won’t install | Use a Python **3.11–3.12** venv, not 3.14 |
-| ElevenLabs failures | API key, quota, character budget for large scenarios |
-| Mythos phase still silent | Expected for stock `$mythos*` pool — see Mythos caveat |
-| Combat lines silent | Expected for stock `MONSTER_*` pool; custom events with `.text` should speak |
-| Two scenarios with the same title | Default keeps `quest.name`; pick the `*_TTS.valkyrie` file for voice |
-| Want a distinct menu name | `--title-suffix " TTS"` (stats then go to a separate entry) |
+| `edge-tts` errors | `pip install edge-tts`; network for Microsoft voices |
+| ffmpeg errors | Install ffmpeg; `ffmpeg -version` in the same shell |
+| Kokoro missing models | `kokoro-v1.0.onnx` + `voices-v1.0.bin` next to the script |
+| Kokoro won’t install | Python **3.11–3.12** venv, not 3.14 |
+| Mythos / combat still silent | Expected for stock pools — see caveats above |
+| Need a silent copy again | Re-download the scenario in Valkyrie |
 
 ---
 
 ## Character cost (ElevenLabs)
 
-Full scenarios can be **100k+** characters of dialogue after cleaning. At typical ElevenLabs rates that is often impractical compared to free edge-tts or local Kokoro. Prefer edge-tts or Kokoro for whole campaigns; use ElevenLabs for short tests if desired.
+Full scenarios can be **100k+** characters. Prefer edge-tts or Kokoro for whole campaigns.
 
 ---
 

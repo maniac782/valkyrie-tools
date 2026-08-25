@@ -10,8 +10,8 @@ Providers:
   - kokoro    (free, local — uses the 3.12 venv + bm_daniel by default)
 
 Interactive picker of Download scenarios.
-Packages only to Download\\<name>_TTS.valkyrie
-Keeps original quest.name by default so Valkyrie stats attach to the original scenario.
+By default **replaces** the chosen .valkyrie in place (same filename).
+Keeps original quest.name so Valkyrie stats attach to the original scenario.
 Cleans up Editor leftovers automatically.
 """
 
@@ -646,19 +646,38 @@ def process_scenario(
         stem = scenario.stem if scenario.is_file() else scenario.name
         stem_clean = re.sub(r"_?TTS$", "", stem, flags=re.I)
         stem_clean = re.sub(r"[^\w\-]+", "", stem_clean) or "Scenario"
-        out_name = f"{stem_clean}_TTS.valkyrie"
 
+        # Default: overwrite the original package so only one scenario exists.
         if output is None:
-            output = download_dir() / out_name
+            if scenario.is_file() and scenario.suffix.lower() == ".valkyrie":
+                output = scenario
+            else:
+                output = download_dir() / f"{stem_clean}.valkyrie"
 
-        log(f"Packaging → {output}")
-        pack_scenario(work, output)
-        log(f"Done. Playable file: {output}")
+        # If overwriting the source .valkyrie, write to a temp file then replace.
+        final_output = output
+        write_path = output
+        if scenario.is_file() and output.resolve() == scenario.resolve():
+            write_path = output.with_suffix(output.suffix + ".tmp")
+
+        log(f"Packaging → {final_output}" + (" (in-place replace)" if write_path != final_output else ""))
+        pack_scenario(work, write_path)
+        if write_path != final_output:
+            write_path.replace(final_output)
+        log(f"Done. Playable file: {final_output}")
+
+        # Remove any old separate TTS twin if it exists
+        twin = download_dir() / f"{stem_clean}_TTS.valkyrie"
+        if twin.exists() and twin.resolve() != final_output.resolve():
+            twin.unlink()
+            log(f"Removed old separate package: {twin.name}")
 
         leftover = editor_dir() / f"{stem_clean}_TTS"
         if leftover.exists():
             shutil.rmtree(leftover)
             log(f"Cleaned up Editor leftover: {leftover}")
+        leftover2 = editor_dir() / stem_clean
+        # do not delete non-_TTS editor folders — may be real edits
 
     finally:
         if tmp_root.exists():
@@ -720,7 +739,7 @@ def run_preview(provider: str, voice_id: str, voice_label: str) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser(description="TTS for Valkyrie / Mansions of Madness scenarios")
     ap.add_argument("-s", "--scenario", help="Path to .valkyrie (optional — interactive picker if omitted)")
-    ap.add_argument("-o", "--output", help="Output .valkyrie path (default: Download\\<name>_TTS.valkyrie)")
+    ap.add_argument("-o", "--output", help="Output .valkyrie path (default: overwrite the source scenario in place)")
     ap.add_argument("--provider", choices=["edge", "elevenlabs", "kokoro"], default="edge")
     ap.add_argument("--voice", default=None, help="Voice name (default depends on provider)")
     ap.add_argument("--preview", action="store_true")

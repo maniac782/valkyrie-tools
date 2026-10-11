@@ -9,9 +9,11 @@ The tool reads a scenario’s tile and monster definitions, converts the officia
 ## Features
 
 - Interactive picker for scenarios in **Valkyrie Editor** and **Download** folders
-- Tile cards with art, printed name, expansion icon, and **v5.2 tile index** (e.g. `1 S`, `12 S`, `6 M`)
+- Tile cards with art, printed name, expansion icon, and **v5.2 tile index** (e.g. `1 S`, `12 S`, `46 S`) for every tile
+  side Valkyrie knows, including all the expansions and the first-edition tiles
 - 6-player-only tiles listed separately
-- Monsters mapped to real base tokens (custom monsters resolve via `base=`)
+- Monsters mapped to real base tokens (custom monsters resolve via `base=`), including every type a spawn can pick
+- Works with scenarios that keep their files in subfolders (versions for different expansions) or outside `tiles.ini`
 - Auto-opens the HTML when finished
 - Cleans up temporary extraction folders
 
@@ -125,9 +127,16 @@ Each tile card shows:
 - **Expansion icon + name** – physical product the tile belongs to
 - **Index** – community number from Tiles Index **v5.2** (e.g. `35 S`)
 
-Indexes are hardcoded from v5.2 of the BGG file above. Expansion membership is also fixed in the catalog so icons stay correct even if multiple DDS variants exist in the import folder.
+Indexes are hardcoded from v5.2 of the BGG file above: every tile side defined in Valkyrie's game content, matched to the
+PDF by name and by the set symbol beside it (names repeat across sets: there are five Libraries). Expansion membership is
+also fixed in the catalog so icons stay correct even if multiple DDS variants exist in the import folder. First-edition
+tiles (base game, Forbidden Alchemy, Call of the Wild) are listed under the second-edition box that reprints them:
+Recurring Nightmares or Suppressed Memories.
 
-If a rare side is missing from the catalog, the badge shows `?` and expansion `Unknown`. Open an issue or send the `side=` line from `tiles.ini` and it can be added from the PDF.
+Valkyrie uses one side name, `TileSideCampsite`, for two different tiles (28 S in Call of the Wild, 73 S in Path of the
+Serpent); the scenario's `packs=` line in `quest.ini` decides which.
+
+A badge of `?` with expansion `Unknown` now means a custom tile from a fan-made content pack, which isn't in any box.
 
 ---
 
@@ -148,7 +157,7 @@ If a rare side is missing from the catalog, the badge shows `?` and expansion `U
 | Missing tile art | Confirm `%APPDATA%\Valkyrie\MoM\import\img\Tile_*.dds` exists (run Valkyrie content import) |
 | Missing expansion icons | Ensure `icons/` sits next to `valkyrie_packlist.py` with the eight PNGs |
 | `Pillow not found` | `pip install pillow` |
-| Index shows `?` | That `TileSide*` is not in the v5.2 catalog yet — report the side id |
+| Index shows `?` | A custom tile from a fan-made content pack (not in any box). If it's an official tile, report the side id |
 
 ---
 

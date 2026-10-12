@@ -13,6 +13,7 @@ The tool reads a scenario’s tile and monster definitions, converts the officia
   side Valkyrie knows, including all the expansions and the first-edition tiles
 - 6-player-only tiles listed separately
 - Monsters mapped to real base tokens (custom monsters resolve via `base=`), including every type a spawn can pick
+- Monster art for all 40 monsters, the right way up (the game stores it upside down) and found by the same file names Valkyrie uses, so oddly named ones like Lloigor and Temple Guardian still get a picture
 - Works with scenarios that keep their files in subfolders (versions for different expansions) or outside `tiles.ini`
 - Auto-opens the HTML when finished
 - Cleans up temporary extraction folders

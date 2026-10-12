@@ -360,12 +360,14 @@ def scenario_packs(scenario_dir: Path) -> set[str]:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-def convert_any_image(src: Path, dst: Path, rotate: int = 0) -> bool:
+def convert_any_image(src: Path, dst: Path, flip: bool = False) -> bool:
     try:
         with Image.open(src) as im:
             im = im.convert("RGBA")
-            if rotate:
-                im = im.rotate(rotate, expand=True)
+            if flip:
+                # The game's monster textures are stored bottom row first, so they decode upside down. Flip them top to
+                # bottom (not a 180° turn, which would also mirror the art left to right).
+                im = im.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
             im.save(dst, "PNG")
         return True
     except Exception as e:
@@ -404,8 +406,59 @@ def find_tile_image(side: str, expansion: str = "Unknown") -> Path | None:
     return None
 
 
+# The image file Valkyrie itself uses for each monster (image= in its monsters.ini files). Most follow the
+# Monster_<Words_Like_This> pattern, but not all: Lloigor is Monster_Lloiger and Temple Guardian Monster_Temple_Guard.
+MONSTER_IMAGE = {
+    "MonsterAncientBasilisk": "Monster_Ancient_Basilisk",
+    "MonsterByakhee": "Monster_Byakhee",
+    "MonsterChildOfDagon": "Monster_Child_Of_Dagon",
+    "MonsterChildOfTheGoat": "Monster_Child_Of_The_Goat",
+    "MonsterCrawlingOne": "Monster_Crawling_One",
+    "MonsterCthonian": "Monster_Cthonian",
+    "MonsterCultLeader": "Monster_Cult_Leader",
+    "MonsterCultist": "Monster_Cultist",
+    "MonsterDarkDruid": "Monster_Dark_Druid",
+    "MonsterDarkYoung": "Monster_Dark_Young",
+    "MonsterDeepOne": "Monster_Deep_One",
+    "MonsterDeepOneHybrid": "Monster_Deep_One_Hybrid",
+    "MonsterDimensionalShambler": "Monster_Dimensional_Shambler",
+    "MonsterDunwichHorror": "Monster_Dunwich_Horror",
+    "MonsterFeatheredSerpent": "Monster_Feathered_Serpent",
+    "MonsterFormlessSpawn": "Monster_Formless_Spawn",
+    "MonsterGhost": "Monster_Ghost",
+    "MonsterGoatSpawn": "Monster_Goat_Spawn",
+    "MonsterHiredGun": "Monster_Hired_Gun",
+    "MonsterHoundOfTindalos": "Monster_Hound_Of_Tindalos",
+    "MonsterHuntingDeepOne": "Monster_Hunting_Deep_One",
+    "MonsterHuntingHorror": "Monster_Hunting_Horror",
+    "MonsterLloigor": "Monster_Lloiger",
+    "MonsterManiac": "Monster_Maniac",
+    "MonsterMiGo": "Monster_Mi_Go",
+    "MonsterNightgaunt": "Monster_Nightgaunt",
+    "MonsterPriestOfDagon": "Monster_Priest_Of_Dagon",
+    "MonsterRiot": "Monster_Riot",
+    "MonsterSerpentPerson": "Monster_SerpentPerson",
+    "MonsterShoggoth": "Monster_Shoggoth",
+    "MonsterSkeleton": "Monster_Skeleton",
+    "MonsterStarSpawn": "Monster_Star_Spawn",
+    "MonsterStarVampire": "Monster_Star_Vampire",
+    "MonsterTempleGuardian": "Monster_Temple_Guard",
+    "MonsterThrall": "Monster_Thrall",
+    "MonsterWarlock": "Monster_Warlock",
+    "MonsterWitch": "Monster_Witch",
+    "MonsterWizard": "Monster_Wizard",
+    "MonsterWraith": "Monster_Wraith",
+    "MonsterZombie": "Monster_Zombie",
+}
+
+
 def find_monster_dds(name: str) -> Path | None:
     clean = re.sub(r"^(Monster|CustomMonster)", "", name)
+    known = MONSTER_IMAGE.get(name) or MONSTER_IMAGE.get("Monster" + clean)
+    if known:
+        for c in (f"{known}.dds", f"{known}_000002.dds"):
+            if (IMPORT_IMG / c).exists():
+                return IMPORT_IMG / c
     candidates = [
         f"Monster_{clean}.dds",
         f"Monster_{clean}_000002.dds",
@@ -652,7 +705,7 @@ def build_packlist(scenario_dir: Path):
         img_rel = None
         if img_src:
             dst = monsters_dir / f"{real}.png"
-            if convert_any_image(img_src, dst, rotate=180):
+            if convert_any_image(img_src, dst, flip=True):
                 img_rel = f"monsters/{real}.png"
                 print(f" ✓ monster {real} → {printed}")
             else:

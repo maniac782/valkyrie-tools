@@ -13,6 +13,7 @@ The tool reads a scenario’s tile and monster definitions, converts the officia
   side Valkyrie knows, including all the expansions and the first-edition tiles
 - 6-player-only tiles listed separately
 - Monsters mapped to real base tokens (custom monsters resolve via `base=`), including every type a spawn can pick
+- Tile art for every tile side Valkyrie knows (237), found by the same file names Valkyrie uses and flipped the right way up (unflipped, the game's textures come out mirrored). The 16 sides Valkyrie ships its own pictures for (some first-edition, Forbidden Alchemy and Call of the Wild tiles, and Alley End) are included in `valkyrie-img/`; that art is © Fantasy Flight Games, as Valkyrie distributes it
 - Monster art for all 40 monsters, the right way up (the game stores it upside down) and found by the same file names Valkyrie uses, so oddly named ones like Lloigor and Temple Guardian still get a picture
 - Works with scenarios that keep their files in subfolders (versions for different expansions) or outside `tiles.ini`
 - Auto-opens the HTML when finished

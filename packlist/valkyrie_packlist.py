@@ -12,6 +12,7 @@ Generic visual packing list for any Valkyrie MoM scenario.
 - Cleans up temp extraction folder
 """
 
+import heapq
 import os
 import re
 import sys
@@ -778,21 +779,80 @@ def parse_custom_monsters(scenario_dir: Path) -> dict[str, dict]:
     return result
 
 
+def scenario_sections(scenario_dir: Path) -> dict[str, dict[str, str]]:
+    """Every [section] in the scenario's .ini files, in file order: {name: {key (lower case): value}}."""
+    secs: dict[str, dict[str, str]] = {}
+    for ini in ini_files(scenario_dir):
+        cur = None
+        for line in ini.read_text(encoding="utf-8-sig", errors="ignore").splitlines():
+            s = line.strip()
+            if not s or s[0] in ";#":
+                continue
+            m = re.match(r"^\[([^\]]+)\]", s)
+            if m:
+                cur = secs.setdefault(m.group(1).strip(), {})
+                continue
+            if cur is not None and "=" in s:
+                k, v = s.split("=", 1)
+                cur[k.strip().lower()] = v.strip()
+    return secs
+
+
+ROUND_STEPS = 3
+ROUND_TRIGGERS = {"Mythos", "EndRound", "StartRound", "EndInvestigatorTurn", "NoMorale"}
+
+
+def play_order(secs: dict[str, dict[str, str]]) -> list[str]:
+    """The scenario's sections in the order they first come into play: a walk from the start event along every event
+    link (event1=, event2=, ...), into whatever an event adds (an explore token leads to its own event), on to events
+    triggered by defeating a monster a spawn brought in. Mythos and round events join a few steps in. Branches are taken
+    nearest first, so it's the earliest each could appear; anything the walk can't reach goes last.
+    (The same as momcasebook's scripts/fetch-packlists.py.)"""
+    edges = {}
+    for n, d in secs.items():
+        out = []
+        for k in sorted((k for k in d if re.fullmatch(r"event\d+", k)), key=lambda k: int(k[5:])):
+            out += d[k].split()
+        out += d.get("add", "").split()
+        edges[n] = [x for x in out if x in secs]
+    for n, d in secs.items():
+        m = re.match(r"^Defeated(\w+)$", d.get("trigger", ""))
+        if m:
+            for sname, sd in secs.items():
+                if m.group(1) in sd.get("monster", "").split():
+                    edges[sname].append(n)
+    queue = [(0, i, n) for i, (n, d) in enumerate(secs.items()) if d.get("trigger") == "EventStart"]
+    queue += [(ROUND_STEPS, i, n) for i, (n, d) in enumerate(secs.items()) if d.get("trigger") in ROUND_TRIGGERS]
+    heapq.heapify(queue)
+    seen, order, count = set(), [], len(secs)
+    while queue:
+        step, _, n = heapq.heappop(queue)
+        if n in seen:
+            continue
+        seen.add(n)
+        order.append(n)
+        for x in edges.get(n, []):
+            if x not in seen:
+                count += 1
+                heapq.heappush(queue, (step + 1, count, x))
+    return order + [n for n in secs if n not in seen]
+
+
 def collect_added_tiles(scenario_dir: Path) -> tuple[list[str], list[str]]:
+    """Every tile the scenario adds, in the order they come into play (6-player-only ones apart)."""
     normal, six = [], []
     seen = set()
-    for ini in ini_files(scenario_dir):
-        text = ini.read_text(encoding="utf-8", errors="ignore")
-        for m in re.finditer(r"^add\s*=\s*(.+)$", text, re.MULTILINE | re.IGNORECASE):
-            for name in m.group(1).split():
-                name = name.strip()
-                if not name.startswith("Tile") or name in seen:
-                    continue
-                seen.add(name)
-                if "6Player" in name:
-                    six.append(name)
-                else:
-                    normal.append(name)
+    secs = scenario_sections(scenario_dir)
+    for sec in play_order(secs):
+        for name in secs[sec].get("add", "").split():
+            name = name.strip()
+            if not name.startswith("Tile") or name in seen:
+                continue
+            seen.add(name)
+            if "6Player" in name:
+                six.append(name)
+            else:
+                normal.append(name)
     return normal, six
 
 
@@ -800,22 +860,21 @@ def collect_real_monsters(scenario_dir: Path) -> list[tuple[str, list[str]]]:
     custom_info = parse_custom_monsters(scenario_dir)
     order = []
     used_by: dict[str, list[str]] = {}
-    for ini in ini_files(scenario_dir):
-        text = ini.read_text(encoding="utf-8", errors="ignore")
-        # a spawn can list several monster types (the game picks one), so take them all
-        for m in re.finditer(r"^monster\s*=\s*(.+)$", text, re.MULTILINE | re.IGNORECASE):
-            for mon in m.group(1).split():
-                if mon in custom_info and "base" in custom_info[mon]:
-                    real = custom_info[mon]["base"]
-                    custom_name = mon
-                else:
-                    real = mon
-                    custom_name = None
-                if real not in used_by:
-                    used_by[real] = []
-                    order.append(real)
-                if custom_name and custom_name not in used_by[real]:
-                    used_by[real].append(custom_name)
+    secs = scenario_sections(scenario_dir)
+    # in the order they come into play; a spawn can list several monster types (the game picks one), so take them all
+    for sec in play_order(secs):
+        for mon in secs[sec].get("monster", "").split():
+            if mon in custom_info and "base" in custom_info[mon]:
+                real = custom_info[mon]["base"]
+                custom_name = mon
+            else:
+                real = mon
+                custom_name = None
+            if real not in used_by:
+                used_by[real] = []
+                order.append(real)
+            if custom_name and custom_name not in used_by[real]:
+                used_by[real].append(custom_name)
     return [(real, used_by[real]) for real in order]
 
 

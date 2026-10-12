@@ -798,15 +798,33 @@ def scenario_sections(scenario_dir: Path) -> dict[str, dict[str, str]]:
     return secs
 
 
-ROUND_STEPS = 3
 ROUND_TRIGGERS = {"Mythos", "EndRound", "StartRound", "EndInvestigatorTurn", "NoMorale"}
+STEPS_PER_ROUND = 2   # roughly how far the story moves on in a round, to place "from round N" events
+
+
+def _num(x):
+    try:
+        return float(x)
+    except ValueError:
+        return None
+
+
+def _true_at_zero(op, rhs):
+    """Does a variable test already pass before the variable is ever set (variables start at 0)? Comparisons with
+    another variable can't be told, so they don"t wait."""
+    r = _num(rhs)
+    if r is None:
+        return True
+    return {"==": 0 == r, "!=": 0 != r, ">": 0 > r, ">=": 0 >= r, "<": 0 < r, "<=": 0 <= r}.get(op, True)
 
 
 def play_order(secs: dict[str, dict[str, str]]) -> list[str]:
-    """The scenario's sections in the order they first come into play: a walk from the start event along every event
+    """The scenario"s components in the order they first come into play. A walk from the start event along every event
     link (event1=, event2=, ...), into whatever an event adds (an explore token leads to its own event), on to events
-    triggered by defeating a monster a spawn brought in. Mythos and round events join a few steps in. Branches are taken
-    nearest first, so it's the earliest each could appear; anything the walk can't reach goes last.
+    triggered by defeating a monster that a spawn brought in. Mythos and round events start after the opening (what
+    follows from the start without exploring), and an event waits for the round its tests ask for ("#round >= 18") and
+    for the variables it tests to be set by some earlier event ("PlazaPlaced == 1"). Branches the players choose
+    between are taken nearest first, so it"s the earliest each could appear; anything the walk can't reach goes last.
     (The same as momcasebook's scripts/fetch-packlists.py.)"""
     edges = {}
     for n, d in secs.items():
@@ -818,23 +836,75 @@ def play_order(secs: dict[str, dict[str, str]]) -> list[str]:
     for n, d in secs.items():
         m = re.match(r"^Defeated(\w+)$", d.get("trigger", ""))
         if m:
-            for sname, sd in secs.items():
+            for s, sd in secs.items():
                 if m.group(1) in sd.get("monster", "").split():
-                    edges[sname].append(n)
-    queue = [(0, i, n) for i, (n, d) in enumerate(secs.items()) if d.get("trigger") == "EventStart"]
-    queue += [(ROUND_STEPS, i, n) for i, (n, d) in enumerate(secs.items()) if d.get("trigger") in ROUND_TRIGGERS]
-    heapq.heapify(queue)
-    seen, order, count = set(), [], len(secs)
+                    edges[s].append(n)
+    # variables: which sections set them, the first number each is set to, and what each section waits for
+    setters, first = {}, {}
+    for n, d in secs.items():
+        for o in d.get("operations", "").split():
+            p = o.split(",")
+            if len(p) == 3 and not p[0].startswith("#"):
+                if p[1] in ("=", "+") and not (p[1] == "=" and _num(p[2]) == 0):
+                    setters.setdefault(p[0], set()).add(n)
+                if p[1] == "=" and _num(p[2]) is not None:
+                    first.setdefault(p[0], _num(p[2]))
+    needs, rounds = {}, {}
+    for n, d in secs.items():
+        for lhs, op, rhs in re.findall(r"VarOperation:([^,\s]+),([=!<>]+),(\S+)", d.get("vartests", "")):
+            if lhs == "#round" and op in (">=", ">"):
+                r = _num(rhs) if _num(rhs) is not None else first.get(rhs)
+                if r:
+                    rounds[n] = max(rounds.get(n, 0), r + (op == ">"))
+            elif not lhs.startswith("#") and lhs in setters and not _true_at_zero(op, rhs):
+                needs.setdefault(n, set()).add(lhs)
+    start = [n for n, d in secs.items() if d.get("trigger") == "EventStart"]
+    opening, frontier = {n: 0 for n in start}, list(start)
+    while frontier:
+        nxt = []
+        for n in frontier:
+            for x in edges.get(n, []):
+                if x not in opening and not x.startswith("Token"):
+                    opening[x] = opening[n] + 1
+                    nxt.append(x)
+        frontier = nxt
+    first_round = max(opening.values()) + 1 if opening else 0
+    queue, count = [], [0]
+
+    def push(step, n):
+        count[0] += 1
+        heapq.heappush(queue, (step, count[0], n))
+    for n in start:
+        push(0, n)
+    for n, d in secs.items():
+        if d.get("trigger") in ROUND_TRIGGERS:
+            push(first_round, n)
+    seen, order, set_at, waiting = set(), [], {}, {}
     while queue:
         step, _, n = heapq.heappop(queue)
         if n in seen:
             continue
+        missing = [v for v in needs.get(n, ()) if v not in set_at]
+        if missing:   # comes back when something sets the variable
+            for v in missing:
+                waiting.setdefault(v, []).append(n)
+            continue
+        ready = max([step] + [set_at[v] + 1 for v in needs.get(n, ())] +
+                    ([first_round + STEPS_PER_ROUND * (rounds[n] - 1)] if n in rounds else []))
+        if ready > step:
+            push(ready, n)
+            continue
         seen.add(n)
         order.append(n)
+        for o in secs[n].get("operations", "").split():
+            v = o.split(",")[0]
+            if n in setters.get(v, ()) and v not in set_at:
+                set_at[v] = step
+                for w in waiting.pop(v, []):
+                    push(step + 1, w)
         for x in edges.get(n, []):
             if x not in seen:
-                count += 1
-                heapq.heappush(queue, (step + 1, count, x))
+                push(step + 1, x)
     return order + [n for n in secs if n not in seen]
 
 
